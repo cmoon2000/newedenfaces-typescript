@@ -1,0 +1,36 @@
+{
+	"compilerOptions": {
+		"target": "es5",
+		"module": "commonjs",
+		// 2 dòng dưới để target đc sang ES2015 thay vì es5
+		// "moduleResolution": "classic",
+		"lib": ["es5", "dom"],
+
+		// "listFiles": true,
+		"baseUrl": ".",
+		"noEmitOnError": true,
+		"jsx": "react",
+		"experimentalDecorators": true,
+		"forceConsistentCasingInFileNames": true,
+		"noFallthroughCasesInSwitch": true,
+		"noImplicitAny": true,
+		"noImplicitReturns": true,
+		"noImplicitThis": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"removeComments": true,
+		"strictNullChecks": true
+	},
+	"include": [
+		"./**.ts",
+		"./app/**.ts",
+		"./app/**.tsx"
+	],
+	"exclude": [
+		"node_modules",
+		"bower_components"
+	],
+	"typeRoots": [
+    	"node_modules/@types"
+    ]
+}

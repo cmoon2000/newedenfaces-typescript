@@ -1,0 +1,50 @@
+/// <reference path="../../node_modules/@types/jquery/index.d.ts"  />
+import altInstance from '../alt';
+import AbstractActions from './AbstractActions';
+
+class AddCharacterActions extends AbstractActions {
+	constructor() {
+		super();
+		this.generateActions(
+			'addCharacterSuccess',
+			'addCharacterFail',
+			// 'updateName',
+			// 'updateGender',
+			// 'invalidName',
+			// 'invalidGender'
+		);
+	}
+
+	invalidName() {
+		this.dispatch();
+	}
+
+	invalidGender() {
+		this.dispatch();
+	}
+
+	updateName(payload: any) {
+		this.dispatch(payload);
+	}
+
+	updateGender(payload: any) {
+		this.dispatch(payload);
+	}
+
+	addCharacter(name: string, gender: string) {
+		$.ajax({
+			type: 'POST',
+			url: '/api/characters',
+			data: { name: name, gender: gender }
+		})
+		  .done((data) => {
+		  	this.actions.addCharacterSuccess(data.message);
+		  })
+		  .fail((jqXhr) => {
+		 	this.actions.addCharacterFail(jqXhr.responseJSON && jqXhr.responseJSON.message || jqXhr.responseText || jqXhr.statusText);
+
+		  });
+	}
+}
+
+export default altInstance.createActions<AddCharacterActions>(AddCharacterActions);
