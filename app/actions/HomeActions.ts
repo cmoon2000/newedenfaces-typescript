@@ -2,6 +2,22 @@
 import altInstance from '../alt';
 import AbstractActions from './AbstractActions';
 
+const twoCharactersGraphqlString = `
+{
+  twoCharacters {
+    characterId
+    name
+    race
+    bloodline
+    gender
+    voted
+    reports
+    losses
+    wins
+  }
+}
+`;
+
 class HomeActions extends AbstractActions {
 	constructor() {
 		super();
@@ -13,8 +29,11 @@ class HomeActions extends AbstractActions {
 	}
 
 	getTwoCharacters() {
-		$.ajax({ url: '/api/characters' })
-		  .done((data: any) => this.actions.getTwoCharactersSuccess(data))
+		$.ajax({
+			url: '/api/characters',
+			data: { requestString: twoCharactersGraphqlString }
+		  })
+		  .done((data: any) => this.actions.getTwoCharactersSuccess(data.data.twoCharacters))
 		  .fail((jqXhr: any) => this.actions.getTwoCharactersFail(jqXhr.responseJSON.message));
 	}
 

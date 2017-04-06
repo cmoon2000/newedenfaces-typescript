@@ -2,9 +2,7 @@
 	"compilerOptions": {
 		"target": "es5",
 		"module": "commonjs",
-		// 2 dòng dưới để target đc sang ES2015 thay vì es5
-		// "moduleResolution": "classic",
-		"lib": ["es5", "dom"],
+		"lib": ["ES2015", "dom", "ES2015.Promise"],
 
 		// "listFiles": true,
 		"baseUrl": ".",
@@ -24,7 +22,8 @@
 	"include": [
 		"./**.ts",
 		"./app/**.ts",
-		"./app/**.tsx"
+		"./app/**.tsx",
+		"./data/**.ts"
 	],
 	"exclude": [
 		"node_modules",

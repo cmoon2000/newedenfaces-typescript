@@ -2,6 +2,32 @@
 import altInstance from '../alt';
 import AbstractActions from './AbstractActions';
 
+const characterByIdGraphqlString = `
+query CharacterById($id: String) {
+  characterById(id: $id) {
+    characterId
+    name
+    race
+    bloodline
+    gender
+    random
+    voted
+    reports
+    losses
+    wins
+  }
+}
+`;
+
+const reportGraphqlString = `
+mutation Report($id: String) {
+  report(id: $id) {
+    name
+    reports
+  }
+}
+`;
+
 class CharacterActions extends AbstractActions {
   constructor() {
     super();
@@ -14,9 +40,14 @@ class CharacterActions extends AbstractActions {
   }
 
   getCharacter(characterId: string) {
-    $.ajax({ url: '/api/characters/' + characterId })
-      .done((data) => {
-        this.actions.getCharacterSuccess(data);
+    $.ajax({
+      url: '/api/characters/' + characterId,
+      data: {
+        requestString: characterByIdGraphqlString
+      }
+    })
+      .done(data => {
+        this.actions.getCharacterSuccess(data.data.characterById);
       })
       .fail((jqXhr) => {
         this.actions.getCharacterFail(jqXhr);
@@ -27,9 +58,10 @@ class CharacterActions extends AbstractActions {
     $.ajax({
       type: 'POST',
       url: '/api/report',
-      data: { characterId: characterId }
+      data: { characterId: characterId, requestString: reportGraphqlString }
     })
-      .done(() => {
+      .done((data) => {
+        console.log(data);
         this.actions.reportSuccess();
       })
       .fail((jqXhr) => {

@@ -5,8 +5,8 @@ import StatsActions from '../actions/StatsActions';
 import AbstractStoreModel from './AbstractStoreModel';
 
 export interface StatsState {
-	leadingRace: { race: string, count: number };
-	leadingBloodline: { bloodline: string, count: number };
+	leadingRace: { topType: string, count: number };
+	leadingBloodline: { topType: string, count: number };
 	amarrCount: number;
 	caldariCount: number;
 	gallenteCount: number;
@@ -19,8 +19,8 @@ export interface StatsState {
 	onGetStatsFail(jqXhr: any): void;
 }
 class StatsStore extends AbstractStoreModel<StatsState> implements StatsState {
-	leadingRace: { race: string, count: number };
-	leadingBloodline: { bloodline: string, count: number };
+	leadingRace: { topType: string, count: number };
+	leadingBloodline: { topType: string, count: number };
 	amarrCount: number;
 	caldariCount: number;
 	gallenteCount: number;
@@ -32,8 +32,8 @@ class StatsStore extends AbstractStoreModel<StatsState> implements StatsState {
 	constructor() {
 		super();
 		this.bindActions(StatsActions);
-		this.leadingRace = { race: 'Unknown', count: 0 };
-		this.leadingBloodline = { bloodline: 'Unknown', count: 0 };
+		this.leadingRace = { topType: 'Unknown', count: 0 };
+		this.leadingBloodline = { topType: 'Unknown', count: 0 };
 		this.amarrCount = 0;
 		this.caldariCount = 0;
 		this.gallenteCount = 0;

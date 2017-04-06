@@ -9,25 +9,33 @@ import * as swig from 'swig';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom/server';
 import * as Router from 'react-router';
-import * as _ from 'underscore';
 import * as mongoose from 'mongoose';
 import * as logger from 'morgan';
 import * as async from 'async';
 import * as request from 'request';
 import * as xml2js from 'xml2js';
+import { graphqlExpress, graphiqlExpress } from 'graphql-server-express';
+import { makeExecutableSchema } from 'graphql-tools';
+import { graphql } from 'graphql';
 
 import Character, { ICharacterModel } from  './models/character';
-
 import routes from './app/routes';
+import schema from './data/schema';
+import resolvers from './data/resolvers';
 
 
 const config: { database: string } = require('./config');
 
 const app = express();
 
+const executableSchema = makeExecutableSchema({
+  typeDefs: [schema],
+  resolvers
+});
+
 mongoose.connect(config.database);
 mongoose.connection.on('error', function() {
-	  console.info('Error: Could not connect to MongoDB. Did you forget to run `mongod`?');
+    console.info('Error in file server.js: Could not connect to MongoDB. Did you forget to run `mongod`?');
 });
 
 app.set('port', process.env.PORT || 3000);
@@ -35,6 +43,14 @@ app.use(logger('dev'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+app.use('/graphql', bodyParser.json(), graphqlExpress({
+  schema: executableSchema
+}));
+
+app.use('/graphiql', graphiqlExpress({
+  endpointURL: '/graphql'
+}));
 
 /**
  * POST /api/characters
@@ -72,36 +88,41 @@ app.post('/api/characters', function(req, res, next) {
       });
     },
     function(characterId: string) {
-			var characterInfoUrl = 'https://api.eveonline.com/eve/CharacterInfo.xml.aspx?characterID=' + characterId;
+      var characterInfoUrl = 'https://api.eveonline.com/eve/CharacterInfo.xml.aspx?characterID=' + characterId;
 
-			request.get({ url: characterInfoUrl }, function(err, _request, xml) {
-				if (err) return next(err);
-				parser.parseString(xml, function(err: any, parsedXml: any): any {
-					if (err) return res.send(err);
-					try {
-						var name = parsedXml.eveapi.result[0].characterName[0];
-						var race = parsedXml.eveapi.result[0].race[0];
-						var bloodline = parsedXml.eveapi.result[0].bloodline[0];
+      request.get({ url: characterInfoUrl }, function(err, _request, xml) {
+        if (err) return next(err);
+        parser.parseString(xml, function(err: any, parsedXml: any): any {
+          if (err) return res.send(err);
+          try {
+            var name = parsedXml.eveapi.result[0].characterName[0];
+            var race = parsedXml.eveapi.result[0].race[0];
+            var bloodline = parsedXml.eveapi.result[0].bloodline[0];
 
-						var character = new Character({
-							characterId: characterId,
-							name: name,
-							race: race,
-							bloodline: bloodline,
-							gender: gender,
-							random: [Math.random(), 0]
-						});
-
-						character.save(function(err) {
-							if (err) return next(err);
-							res.send({ message: characterName + ' has been added successfully!' });
-						});
-					} catch (e) {
-						res.status(404).send({ message: characterName + ' is not a registered citizen of New Eden.' });
-					}
-				});
-			});
-		}
+            graphql(
+              executableSchema,
+              req.body.requestString,
+              undefined,
+              undefined,
+              {
+                characterId,
+                name,
+                race,
+                bloodline,
+                gender,
+                random: [Math.random(), 0]
+              }
+            )
+            .then(result => {
+              res.send({ message: (result as any).data.character.name + ' has been added successfully!' });
+            })
+            .catch(err => next(err));
+          } catch (e) {
+            res.status(404).send({ message: characterName + ' is not a registered citizen of New Eden.' });
+          }
+        });
+      });
+    }
   ]);
 });
 
@@ -109,40 +130,13 @@ app.post('/api/characters', function(req, res, next) {
  * GET /api/characters
  * Returns 2 random characters of the same gender that have not been voted yet.
  */
-app.get('/api/characters', function(_req, res, next) {
-  const choices = ['Female', 'Male'];
-  const randomGender = _.sample(choices);
-
-  Character.find({ random: { $near: [Math.random(), 0] } })
-    .where('voted', false)
-    .where('gender', randomGender)
-    .limit(2)
-    .exec(function(err, characters) {
-      if (err) return next(err);
-
-      if (characters.length === 2) {
-        return res.send(characters);
-      }
-
-      const oppositeGender = _.first(_.without(choices, randomGender));
-
-      Character
-        .find({ random: { $near: [Math.random(), 0] } })
-        .where('voted', false)
-        .where('gender', oppositeGender)
-        .limit(2)
-        .exec(function(err, characters) {
-          if (err) return next(err);
-
-          if (characters.length === 2) {
-            return res.send(characters);
-          }
-
-          Character.update({}, { $set: { voted: false } }, { multi: true }, function(err) {
-            if (err) return next(err);
-            res.send([]);
-          });
-        });
+app.get('/api/characters', function(req, res, next) {
+  graphql(executableSchema, req.query.requestString)
+    .then(result => {
+      res.send(result);
+    })
+    .catch(err => {
+      next(err);
     });
 });
 
@@ -216,11 +210,14 @@ app.put('/api/characters', function(req, res, next): any {
  * GET /api/characters/count
  * Returns the total number of characters.
  */
-app.get('/api/characters/count', function(_req, res, next) {
-  Character.count({}, function(err, count) {
-    if (err) return next(err);
-    res.send({ count: count });
-  });
+app.get('/api/characters/count', function(req, res, next) {
+  graphql(executableSchema, req.query.requestString)
+    .then(result => {
+      res.send(result)
+    })
+    .catch(err => {
+      next(err);
+    });
 });
 
 /**
@@ -228,16 +225,17 @@ app.get('/api/characters/count', function(_req, res, next) {
  * Looks up a character by name. (case-insensitive)
  */
 app.get('/api/characters/search', function(req, res, next) {
-  const characterName = new RegExp(req.query.name, 'i');
-
-  Character.findOne({ name: characterName }, function(err, character) {
-    if (err) return next(err);
-
-    if (!character) {
-      return res.status(404).send({ message: 'Character not found.' });
-    }
-
-    res.send(character);
+  graphql(
+    executableSchema,
+    req.query.requestString,
+    undefined,
+    undefined,
+    { name: req.query.variables.name })
+  .then(result => {
+    res.send(result);
+  })
+  .catch(err => {
+    next(err);
   });
 });
 
@@ -246,43 +244,35 @@ app.get('/api/characters/search', function(req, res, next) {
  * Return 100 highest ranked characters. Filter by gender, race and bloodline.
  */
 app.get('/api/characters/top', function(req, res, next) {
-  const params = req.query;
-  const conditions: any = {};
-
-  _.each(params, function(value, key) {
-    conditions[key] = new RegExp('^' + value + '$', 'i');
+  const params = req.query.variables ? req.query.variables.params : {};
+  graphql(
+    executableSchema,
+    req.query.requestString,
+    undefined,
+    undefined,
+    { params })
+  .then(result => {
+    res.send(result);
+  })
+  .catch(err => {
+    next(err);
   });
-
-  Character
-    .find(conditions)
-    .sort('-wins') // Sort in descending order (highest wins on top)
-    .limit(100)
-    .exec(function(err, characters) {
-      if (err) return next(err);
-
-      // Sort by winning percentage
-      characters.sort(function(a: ICharacterModel, b: ICharacterModel) {
-        if (a.wins / (a.wins + a.losses) < b.wins / (b.wins + b.losses)) { return 1; }
-        if (a.wins / (a.wins + a.losses) > b.wins / (b.wins + b.losses)) { return -1; }
-        return 0;
-      });
-
-      res.send(characters);
-    });
 });
 
 /**
  * GET /api/characters/shame
  * Returns 100 lowest ranked characters.
  */
-app.get('/api/characters/shame', function(_req, res, next) {
-  Character
-    .find()
-    .sort('-losses')
-    .limit(100)
-    .exec(function(err, characters) {
-      if (err) return next(err);
-      res.send(characters);
+app.get('/api/characters/shame', function(req, res, next) {
+  graphql(
+      executableSchema,
+      req.query.requestString
+    )
+    .then(result => {
+      res.send(result);
+    })
+    .catch(err => {
+      next(err);
     });
 });
 
@@ -291,16 +281,22 @@ app.get('/api/characters/shame', function(_req, res, next) {
  * Returns detailed character information
  */
 app.get('/api/characters/:id', function(req, res, next) {
-  const id: string = req.params.id;
-
-  Character.findOne({ characterId: id }, function(err, character) {
-    if (err) return next(err);
-
+  graphql(
+    executableSchema,
+    req.query.requestString,
+    undefined,
+    undefined,
+    { id: req.params.id as string }
+  )
+  .then(character => {
     if (!character) {
       return res.status(404).send({ message: 'Character not found.' });
     }
 
-    res.send(character);
+    return res.send(character);
+  })
+  .catch(err => {
+    next(err);
   });
 });
 
@@ -309,129 +305,35 @@ app.get('/api/characters/:id', function(req, res, next) {
  * Reports a character. Character is removed after 4 reports.
  */
 app.post('/api/report', function(req, res, next) {
-  const characterId: string = req.body.characterId;
-
-  Character.findOne({ characterId: characterId }, function(err, character) {
-    if (err) return next(err);
-
-    if (!character) {
+  graphql(
+    executableSchema,
+    req.body.requestString,
+    undefined,
+    undefined,
+    { id: req.body.characterId }
+  )
+  .then(character => {
+    if(!character) {
       return res.status(404).send({ message: 'Character not found.' });
     }
 
-    character.reports++;
-
-    if (character.reports > 4) {
-      character.remove();
-      return res.send({ message: character.name + ' has been deleted.' });
+    if((character as any).data.report.reports === 5) {
+      return res.send({ message: (character as any).data.report.name + ' has been deleted.' });
     }
 
-    character.save(function(err) {
-      if (err) return next(err);
-      res.send({ message: character.name + ' has been reported.' });
-    });
-  });
+    return res.send({ message: (character as any).data.report.name + ' has been reported.' });
+  })
+  .catch(err => next(err));
 });
 
 /**
  * GET /api/stats
  * Returns characters statistics.
  */
-app.get('/api/stats', function(_req, res, next) {
-  async.parallel([
-    function(callback) {
-      Character.count({}, function(err, count) {
-        callback(err, count);
-      });
-    },
-    function(callback) {
-      Character.count({ race: 'Amarr' }, function(err, amarrCount) {
-        callback(err, amarrCount);
-      });
-    },
-    function(callback) {
-      Character.count({ race: 'Caldari' }, function(err, caldariCount) {
-        callback(err, caldariCount);
-      });
-    },
-    function(callback) {
-      Character.count({ race: 'Gallente' }, function(err, gallenteCount) {
-        callback(err, gallenteCount);
-      });
-    },
-    function(callback) {
-      Character.count({ race: 'Minmatar' }, function(err, minmatarCount) {
-        callback(err, minmatarCount);
-      });
-    },
-    function(callback) {
-      Character.count({ gender: 'Male' }, function(err, maleCount) {
-        callback(err, maleCount);
-      });
-    },
-    function(callback) {
-      Character.count({ gender: 'Female' }, function(err, femaleCount) {
-        callback(err, femaleCount);
-      });
-    },
-    function(callback) {
-      Character.aggregate({ $group: { _id: null, total: { $sum: '$wins' } } }, function(err: any, totalVotes: any) {
-        const total = totalVotes.length ? totalVotes[0].total : 0;
-        callback(err, total);
-      });
-    },
-    function(callback) {
-      Character
-        .find()
-        .sort('-wins')
-        .limit(100)
-        .select('race')
-        .exec(function(err, characters) {
-          if (err) return next(err);
-
-          const raceCount = _.countBy(characters, function(character) { return character.race; });
-          const max = _.max(raceCount, function(race) { return race; });
-          const inverted = _.invert(raceCount);
-          const topRace = inverted[max];
-          const topCount = raceCount[topRace];
-
-          callback(err, { race: topRace, count: topCount });
-        });
-    },
-    function(callback) {
-      Character
-        .find()
-        .sort('-wins')
-        .limit(100)
-        .select('bloodline')
-        .exec(function(err, characters) {
-          if (err) return next(err);
-
-          const bloodlineCount = _.countBy(characters, function(character) { return character.bloodline; });
-          const max = _.max(bloodlineCount, function(bloodline) { return bloodline });
-          const inverted = _.invert(bloodlineCount);
-          const topBloodline = inverted[max];
-          const topCount = bloodlineCount[topBloodline];
-
-          callback(err, { bloodline: topBloodline, count: topCount });
-        });
-    }
-  ],
-  function(err, results) {
-    if (err) return next(err);
-
-    res.send({
-      totalCount: results[0],
-      amarrCount: results[1],
-      caldariCount: results[2],
-      gallenteCount: results[3],
-      minmatarCount: results[4],
-      maleCount: results[5],
-      femaleCount: results[6],
-      totalVotes: results[7],
-      leadingRace: results[8],
-      leadingBloodline: results[9],
-    });
-  });
+app.get('/api/stats', function(req, res, next) {
+  graphql(executableSchema, req.query.requestString)
+    .then(result => res.send(result))
+    .catch(err => next(err));
 });
 
 app.use(function(req, res) {
@@ -475,5 +377,5 @@ io.sockets.on('connection', function(socket) {
 });
 
 server.listen(app.get('port'), function() {
-	console.log('Express server listening on port ' + app.get('port'));
+  console.log('Express server listening on port ' + app.get('port'));
 });

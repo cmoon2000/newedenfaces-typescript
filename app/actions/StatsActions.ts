@@ -2,6 +2,29 @@
 import altInstance from '../alt';
 import AbstractActions from './AbstractActions';
 
+const statsGraphqlString = `
+{
+  stats {
+    totalCount
+    amarrCount
+    caldariCount
+    gallenteCount
+    minmatarCount
+    maleCount
+    femaleCount
+    totalVotes
+    leadingRace {
+      topType
+      count
+    }
+    leadingBloodline {
+      topType
+      count
+    }
+  }
+}
+`;
+
 class StatsActions extends AbstractActions {
 	constructor() {
 		super();
@@ -12,8 +35,8 @@ class StatsActions extends AbstractActions {
 	}
 
 	getStats() {
-		$.ajax({ url: '/api/stats' })
-		  .done(data => this.actions.getStatsSuccess(data))
+		$.ajax({ url: '/api/stats', data: { requestString: statsGraphqlString } })
+		  .done(data => this.actions.getStatsSuccess(data.data.stats))
 		  .fail(jqXhr => this.actions.getStatsFail(jqXhr));
 	}
 }

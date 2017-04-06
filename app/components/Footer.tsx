@@ -24,7 +24,7 @@ class Footer extends React.Component<any, FooterState> {
 	}
 
 	render() {
-		let leaderboardCharacters = this.state.characters.map((character: any) => {
+		let leaderboardCharacters = this.state.characters.map((character) => {
 		  return (
 		    <li key={character.characterId}>
 		      <Link to={'/characters/' + character.characterId}>

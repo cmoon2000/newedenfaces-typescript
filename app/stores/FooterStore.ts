@@ -1,18 +1,20 @@
 /// <reference path="../../node_modules/@types/toastr/index.d.ts"  />
+
 import altInstance from '../alt';
 import FooterActions from '../actions/FooterActions';
 import AbstractStoreModel from './AbstractStoreModel';
+import ICharacter from '../../models/ICharacter';
 
 // create an interface to model the "state" in this store
 
 export interface FooterState {
-	characters: Array<string>;
+	characters: Array<ICharacter>;
 	onGetTopCharactersSuccess(data: any): void;
 	onGetTopCharactersFail(jqXhr: any): void;
 }
 
 class FooterStore extends AbstractStoreModel<FooterState> implements FooterState {
-	characters: Array<string>;
+	characters: Array<ICharacter>;
 	constructor() {
 		super();
 		this.bindActions(FooterActions);

@@ -35,11 +35,11 @@ class Stats extends React.Component<any, StatsState> {
 	          <tbody>
 	          <tr>
 	            <td>Leading race in Top 100</td>
-	            <td>{this.state.leadingRace.race} with {this.state.leadingRace.count} characters</td>
+	            <td>{this.state.leadingRace.topType} with {this.state.leadingRace.count} characters</td>
 	          </tr>
 	          <tr>
 	            <td>Leading bloodline in Top 100</td>
-	            <td>{this.state.leadingBloodline.bloodline} with {this.state.leadingBloodline.count} characters
+	            <td>{this.state.leadingBloodline.topType} with {this.state.leadingBloodline.count} characters
 	            </td>
 	          </tr>
 	          <tr>

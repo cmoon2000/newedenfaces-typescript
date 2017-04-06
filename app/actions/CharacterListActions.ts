@@ -2,6 +2,40 @@
 import altInstance from '../alt';
 import AbstractActions from './AbstractActions';
 
+export const topGraphqlString = `
+query GetTOP($params: ParamsTop) {
+  top(params: $params) {
+    characterId
+    name
+    race
+    bloodline
+    gender
+    random
+    voted
+    reports
+    losses
+    wins
+  }
+}
+`;
+
+const shameGraphqlString = `
+{
+  shame {
+    characterId
+    name
+    race
+    bloodline
+    gender
+    random
+    voted
+    reports
+    losses
+    wins
+  }
+}
+`;
+
 class CharacterListActions extends AbstractActions {
 	constructor() {
 		super();
@@ -19,6 +53,7 @@ class CharacterListActions extends AbstractActions {
 		}
 
 		let url = '/api/characters/top';
+		let requestString = topGraphqlString;
 		const params: ICharacter = <any>{
 			race: payload.race,
 			bloodline: payload.bloodline
@@ -32,11 +67,20 @@ class CharacterListActions extends AbstractActions {
 
 		if (payload.category === 'shame') {
 			url = '/api/characters/shame';
+			requestString = shameGraphqlString;
 		}
 
-		$.ajax({ url: url, data: params })
-		  .done(data => this.actions.getCharactersSuccess(data))
-		  .fail(jqXhr => this.actions.getCharactersFail(jqXhr));
+		$.ajax({
+			url: url,
+			data: {
+				requestString,
+				variables: {
+					params
+				}
+			}
+		})
+		.done(data => this.actions.getCharactersSuccess(data.data.top || data.data.shame))
+		.fail(jqXhr => this.actions.getCharactersFail(jqXhr));
 	}
 }
 

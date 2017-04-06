@@ -2,6 +2,35 @@
 import altInstance from '../alt';
 import AbstractActions from './AbstractActions';
 
+const setCharacterGraphqlString = `
+mutation Character(
+	$characterId: String,
+	$name: String,
+	$race: String,
+	$bloodline: String,
+	$gender: String,
+	$random: [Float]) {
+  character(character: {
+	  	characterId: $characterId,
+	  	name: $name,
+	  	race: $race,
+	  	bloodline: $bloodline,
+	  	gender: $gender,
+	  	random: $random}) {
+    characterId
+    name
+    race
+    bloodline
+    gender
+    random
+    voted
+    reports
+    losses
+    wins
+  }
+}
+`;
+
 class AddCharacterActions extends AbstractActions {
 	constructor() {
 		super();
@@ -35,7 +64,7 @@ class AddCharacterActions extends AbstractActions {
 		$.ajax({
 			type: 'POST',
 			url: '/api/characters',
-			data: { name: name, gender: gender }
+			data: { name: name, gender: gender, requestString: setCharacterGraphqlString }
 		})
 		  .done((data) => {
 		  	this.actions.addCharacterSuccess(data.message);

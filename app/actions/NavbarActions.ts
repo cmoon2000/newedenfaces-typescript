@@ -3,6 +3,29 @@ import { assign } from 'underscore';
 import altInstance from '../alt';
 import AbstractActions from './AbstractActions';
 
+const countGraphqlString = `
+{
+  count
+}
+`;
+
+const characterGraphqlString = `
+query Character($name: String!){
+  character(name: $name) {
+    characterId
+    name
+    race
+    bloodline
+    gender
+    random
+    voted
+    reports
+    losses
+    wins
+  }
+}
+`;
+
 class NavbarActions extends AbstractActions {
 	constructor() {
 		super();
@@ -32,10 +55,15 @@ class NavbarActions extends AbstractActions {
 	findCharacter(payload: any) {
 		$.ajax({
 			url: '/api/characters/search',
-			data: { name: payload.searchQuery }
+			data: {
+				requestString: characterGraphqlString,
+				variables: {
+					name: payload.searchQuery
+				}
+			}
 		})
 		  .done((data) => {
-		  	assign(payload, data);
+		  	assign(payload, data.data.character);
 		  	this.actions.findCharacterSuccess(payload);
 		  })
 		  .fail(() => {
@@ -44,9 +72,12 @@ class NavbarActions extends AbstractActions {
 	}
 
 	getCharacterCount() {
-		$.ajax({ url: '/api/characters/count' })
+		$.ajax({
+			url: '/api/characters/count',
+			data: { requestString: countGraphqlString }
+		})
 		  .done((data) => {
-			this.actions.getCharacterCountSuccess(data);
+			this.actions.getCharacterCountSuccess(data.data);
 		  })
 		  .fail((jqXhr) => {
 		  	this.actions.getCharacterCountFail(jqXhr);
