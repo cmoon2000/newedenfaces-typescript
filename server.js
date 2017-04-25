@@ -1,4 +1,5 @@
 "use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
 require('babel-register');
 var path = require("path");
 var express = require("express");
@@ -7,25 +8,39 @@ var swig = require("swig");
 var React = require("react");
 var ReactDOM = require("react-dom/server");
 var Router = require("react-router");
-var _ = require("underscore");
 var mongoose = require("mongoose");
 var logger = require("morgan");
 var async = require("async");
 var request = require("request");
 var xml2js = require("xml2js");
+var graphql_server_express_1 = require("graphql-server-express");
+var graphql_tools_1 = require("graphql-tools");
+var graphql_1 = require("graphql");
 var character_1 = require("./models/character");
 var routes_1 = require("./app/routes");
+var schema_1 = require("./data/schema");
+var resolvers_1 = require("./data/resolvers");
 var config = require('./config');
 var app = express();
+var executableSchema = graphql_tools_1.makeExecutableSchema({
+    typeDefs: [schema_1.default],
+    resolvers: resolvers_1.default
+});
 mongoose.connect(config.database);
 mongoose.connection.on('error', function () {
-    console.info('Error: Could not connect to MongoDB. Did you forget to run `mongod`?');
+    console.info('Error in file server.js: Could not connect to MongoDB. Did you forget to run `mongod`?');
 });
 app.set('port', process.env.PORT || 3000);
 app.use(logger('dev'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/graphql', bodyParser.json(), graphql_server_express_1.graphqlExpress({
+    schema: executableSchema
+}));
+app.use('/graphiql', graphql_server_express_1.graphiqlExpress({
+    endpointURL: '/graphql'
+}));
 app.post('/api/characters', function (req, res, next) {
     var gender = req.body.gender;
     var characterName = req.body.name;
@@ -68,19 +83,18 @@ app.post('/api/characters', function (req, res, next) {
                         var name = parsedXml.eveapi.result[0].characterName[0];
                         var race = parsedXml.eveapi.result[0].race[0];
                         var bloodline = parsedXml.eveapi.result[0].bloodline[0];
-                        var character = new character_1.default({
+                        graphql_1.graphql(executableSchema, req.body.requestString, undefined, undefined, {
                             characterId: characterId,
                             name: name,
                             race: race,
                             bloodline: bloodline,
                             gender: gender,
                             random: [Math.random(), 0]
-                        });
-                        character.save(function (err) {
-                            if (err)
-                                return next(err);
-                            res.send({ message: characterName + ' has been added successfully!' });
-                        });
+                        })
+                            .then(function (result) {
+                            res.send({ message: result.data.character.name + ' has been added successfully!' });
+                        })
+                            .catch(function (err) { return next(err); });
                     }
                     catch (e) {
                         res.status(404).send({ message: characterName + ' is not a registered citizen of New Eden.' });
@@ -90,37 +104,13 @@ app.post('/api/characters', function (req, res, next) {
         }
     ]);
 });
-app.get('/api/characters', function (_req, res, next) {
-    var choices = ['Female', 'Male'];
-    var randomGender = _.sample(choices);
-    character_1.default.find({ random: { $near: [Math.random(), 0] } })
-        .where('voted', false)
-        .where('gender', randomGender)
-        .limit(2)
-        .exec(function (err, characters) {
-        if (err)
-            return next(err);
-        if (characters.length === 2) {
-            return res.send(characters);
-        }
-        var oppositeGender = _.first(_.without(choices, randomGender));
-        character_1.default
-            .find({ random: { $near: [Math.random(), 0] } })
-            .where('voted', false)
-            .where('gender', oppositeGender)
-            .limit(2)
-            .exec(function (err, characters) {
-            if (err)
-                return next(err);
-            if (characters.length === 2) {
-                return res.send(characters);
-            }
-            character_1.default.update({}, { $set: { voted: false } }, { multi: true }, function (err) {
-                if (err)
-                    return next(err);
-                res.send([]);
-            });
-        });
+app.get('/api/characters', function (req, res, next) {
+    graphql_1.graphql(executableSchema, req.query.requestString)
+        .then(function (result) {
+        res.send(result);
+    })
+        .catch(function (err) {
+        next(err);
     });
 });
 app.put('/api/characters', function (req, res, next) {
@@ -178,184 +168,72 @@ app.put('/api/characters', function (req, res, next) {
         });
     });
 });
-app.get('/api/characters/count', function (_req, res, next) {
-    character_1.default.count({}, function (err, count) {
-        if (err)
-            return next(err);
-        res.send({ count: count });
+app.get('/api/characters/count', function (req, res, next) {
+    graphql_1.graphql(executableSchema, req.query.requestString)
+        .then(function (result) {
+        res.send(result);
+    })
+        .catch(function (err) {
+        next(err);
     });
 });
 app.get('/api/characters/search', function (req, res, next) {
-    var characterName = new RegExp(req.query.name, 'i');
-    character_1.default.findOne({ name: characterName }, function (err, character) {
-        if (err)
-            return next(err);
-        if (!character) {
-            return res.status(404).send({ message: 'Character not found.' });
-        }
-        res.send(character);
+    graphql_1.graphql(executableSchema, req.query.requestString, undefined, undefined, { name: req.query.variables.name })
+        .then(function (result) {
+        res.send(result);
+    })
+        .catch(function (err) {
+        next(err);
     });
 });
 app.get('/api/characters/top', function (req, res, next) {
-    var params = req.query;
-    var conditions = {};
-    _.each(params, function (value, key) {
-        conditions[key] = new RegExp('^' + value + '$', 'i');
-    });
-    character_1.default
-        .find(conditions)
-        .sort('-wins')
-        .limit(100)
-        .exec(function (err, characters) {
-        if (err)
-            return next(err);
-        characters.sort(function (a, b) {
-            if (a.wins / (a.wins + a.losses) < b.wins / (b.wins + b.losses)) {
-                return 1;
-            }
-            if (a.wins / (a.wins + a.losses) > b.wins / (b.wins + b.losses)) {
-                return -1;
-            }
-            return 0;
-        });
-        res.send(characters);
+    var params = req.query.variables ? req.query.variables.params : {};
+    graphql_1.graphql(executableSchema, req.query.requestString, undefined, undefined, { params: params })
+        .then(function (result) {
+        res.send(result);
+    })
+        .catch(function (err) {
+        next(err);
     });
 });
-app.get('/api/characters/shame', function (_req, res, next) {
-    character_1.default
-        .find()
-        .sort('-losses')
-        .limit(100)
-        .exec(function (err, characters) {
-        if (err)
-            return next(err);
-        res.send(characters);
+app.get('/api/characters/shame', function (req, res, next) {
+    graphql_1.graphql(executableSchema, req.query.requestString)
+        .then(function (result) {
+        res.send(result);
+    })
+        .catch(function (err) {
+        next(err);
     });
 });
 app.get('/api/characters/:id', function (req, res, next) {
-    var id = req.params.id;
-    character_1.default.findOne({ characterId: id }, function (err, character) {
-        if (err)
-            return next(err);
+    graphql_1.graphql(executableSchema, req.query.requestString, undefined, undefined, { id: req.params.id })
+        .then(function (character) {
         if (!character) {
             return res.status(404).send({ message: 'Character not found.' });
         }
-        res.send(character);
+        return res.send(character);
+    })
+        .catch(function (err) {
+        next(err);
     });
 });
 app.post('/api/report', function (req, res, next) {
-    var characterId = req.body.characterId;
-    character_1.default.findOne({ characterId: characterId }, function (err, character) {
-        if (err)
-            return next(err);
+    graphql_1.graphql(executableSchema, req.body.requestString, undefined, undefined, { id: req.body.characterId })
+        .then(function (character) {
         if (!character) {
             return res.status(404).send({ message: 'Character not found.' });
         }
-        character.reports++;
-        if (character.reports > 4) {
-            character.remove();
-            return res.send({ message: character.name + ' has been deleted.' });
+        if (character.data.report.reports === 5) {
+            return res.send({ message: character.data.report.name + ' has been deleted.' });
         }
-        character.save(function (err) {
-            if (err)
-                return next(err);
-            res.send({ message: character.name + ' has been reported.' });
-        });
-    });
+        return res.send({ message: character.data.report.name + ' has been reported.' });
+    })
+        .catch(function (err) { return next(err); });
 });
-app.get('/api/stats', function (_req, res, next) {
-    async.parallel([
-        function (callback) {
-            character_1.default.count({}, function (err, count) {
-                callback(err, count);
-            });
-        },
-        function (callback) {
-            character_1.default.count({ race: 'Amarr' }, function (err, amarrCount) {
-                callback(err, amarrCount);
-            });
-        },
-        function (callback) {
-            character_1.default.count({ race: 'Caldari' }, function (err, caldariCount) {
-                callback(err, caldariCount);
-            });
-        },
-        function (callback) {
-            character_1.default.count({ race: 'Gallente' }, function (err, gallenteCount) {
-                callback(err, gallenteCount);
-            });
-        },
-        function (callback) {
-            character_1.default.count({ race: 'Minmatar' }, function (err, minmatarCount) {
-                callback(err, minmatarCount);
-            });
-        },
-        function (callback) {
-            character_1.default.count({ gender: 'Male' }, function (err, maleCount) {
-                callback(err, maleCount);
-            });
-        },
-        function (callback) {
-            character_1.default.count({ gender: 'Female' }, function (err, femaleCount) {
-                callback(err, femaleCount);
-            });
-        },
-        function (callback) {
-            character_1.default.aggregate({ $group: { _id: null, total: { $sum: '$wins' } } }, function (err, totalVotes) {
-                var total = totalVotes.length ? totalVotes[0].total : 0;
-                callback(err, total);
-            });
-        },
-        function (callback) {
-            character_1.default
-                .find()
-                .sort('-wins')
-                .limit(100)
-                .select('race')
-                .exec(function (err, characters) {
-                if (err)
-                    return next(err);
-                var raceCount = _.countBy(characters, function (character) { return character.race; });
-                var max = _.max(raceCount, function (race) { return race; });
-                var inverted = _.invert(raceCount);
-                var topRace = inverted[max];
-                var topCount = raceCount[topRace];
-                callback(err, { race: topRace, count: topCount });
-            });
-        },
-        function (callback) {
-            character_1.default
-                .find()
-                .sort('-wins')
-                .limit(100)
-                .select('bloodline')
-                .exec(function (err, characters) {
-                if (err)
-                    return next(err);
-                var bloodlineCount = _.countBy(characters, function (character) { return character.bloodline; });
-                var max = _.max(bloodlineCount, function (bloodline) { return bloodline; });
-                var inverted = _.invert(bloodlineCount);
-                var topBloodline = inverted[max];
-                var topCount = bloodlineCount[topBloodline];
-                callback(err, { bloodline: topBloodline, count: topCount });
-            });
-        }
-    ], function (err, results) {
-        if (err)
-            return next(err);
-        res.send({
-            totalCount: results[0],
-            amarrCount: results[1],
-            caldariCount: results[2],
-            gallenteCount: results[3],
-            minmatarCount: results[4],
-            maleCount: results[5],
-            femaleCount: results[6],
-            totalVotes: results[7],
-            leadingRace: results[8],
-            leadingBloodline: results[9],
-        });
-    });
+app.get('/api/stats', function (req, res, next) {
+    graphql_1.graphql(executableSchema, req.query.requestString)
+        .then(function (result) { return res.send(result); })
+        .catch(function (err) { return next(err); });
 });
 app.use(function (req, res) {
     Router.match({ routes: routes_1.default, location: req.url }, function (err, redirectLocation, renderProps) {

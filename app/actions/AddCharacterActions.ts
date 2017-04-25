@@ -3,20 +3,8 @@ import altInstance from '../alt';
 import AbstractActions from './AbstractActions';
 
 const setCharacterGraphqlString = `
-mutation Character(
-	$characterId: String,
-	$name: String,
-	$race: String,
-	$bloodline: String,
-	$gender: String,
-	$random: [Float]) {
-  character(character: {
-	  	characterId: $characterId,
-	  	name: $name,
-	  	race: $race,
-	  	bloodline: $bloodline,
-	  	gender: $gender,
-	  	random: $random}) {
+mutation AddCharacter($input: CharacterInput!){
+  character(character: $input) {
     characterId
     name
     race
@@ -36,11 +24,7 @@ class AddCharacterActions extends AbstractActions {
 		super();
 		this.generateActions(
 			'addCharacterSuccess',
-			'addCharacterFail',
-			// 'updateName',
-			// 'updateGender',
-			// 'invalidName',
-			// 'invalidGender'
+			'addCharacterFail'
 		);
 	}
 

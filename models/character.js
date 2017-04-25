@@ -1,4 +1,5 @@
 "use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
 var mongoose = require("mongoose");
 var characterSchema = new mongoose.Schema({
     characterId: { type: String, unique: true, index: true },
@@ -13,5 +14,4 @@ var characterSchema = new mongoose.Schema({
     voted: { type: Boolean, default: false }
 });
 var Character = mongoose.model('Character', characterSchema);
-Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = Character;
